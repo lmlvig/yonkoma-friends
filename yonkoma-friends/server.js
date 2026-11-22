@@ -133,7 +133,7 @@ const server = createServer(async (req, res) => {
         } else {
           const total = mode === "editor" ? panels.length : images.length;
           if (mode === "editor" && total !== 4) return send(res, 400, { error: "4コマで投稿してください" });
-          if (mode === "image" && !(total === 1 || total === 4)) return send(res, 400, { error: "画像は1枚（全体）か4枚（コマごと）で投稿してください" });
+          if (mode === "image" && total !== 4) return send(res, 400, { error: "画像は1コマに1枚ずつ、全部で4枚で投稿してください" });
         }
         const clientKey = typeof b.clientKey === "string" ? b.clientKey.slice(0, 64) : "";
         if (clientKey) {
