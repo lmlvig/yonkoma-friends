@@ -26,7 +26,7 @@ const PUBLIC = join(process.cwd(), "public");
 
 function send(res, code, body, type = "application/json; charset=utf-8") {
   const buf = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
-  res.writeHead(code, { "content-type": type });
+  res.writeHead(code, { "content-type": type, "cache-control": "no-cache" });
   res.end(buf);
 }
 async function bodyJson(req) {
@@ -237,6 +237,28 @@ const server = createServer(async (req, res) => {
         if (f.rows.length) await db.execute({ sql: "DELETE FROM follows WHERE token=? AND author_token=?", args: [me, target] });
         else await db.execute({ sql: "INSERT INTO follows (token, author_token) VALUES (?,?)", args: [me, target] });
         return send(res, 200, { followed: !f.rows.length });
+      }
+      // ---------- admin ----------
+      if (path === "/api/admin/check" && req.method === "POST") {
+        if (!process.env.ADMIN_PASSWORD) return send(res, 403, { error: "管理者パスワードが未設定です" });
+        const b = await bodyJson(req);
+        const ok = String(b.password || "") === process.env.ADMIN_PASSWORD;
+        return send(res, ok ? 200 : 401, { ok });
+      }
+      const mAdminDel = path.match(/^\/api\/admin\/posts\/(\d+)$/);
+      if (mAdminDel && req.method === "DELETE") {
+        if (!process.env.ADMIN_PASSWORD) return send(res, 403, { error: "管理者パスワードが未設定です" });
+        if (String(req.headers["x-admin-password"] || "") !== process.env.ADMIN_PASSWORD) return send(res, 401, { error: "管理者パスワードが違います" });
+        const ids = [Number(mAdminDel[1])];
+        for (let i = 0; i < ids.length; i++) {
+          const ch = await db.execute({ sql: "SELECT id FROM posts WHERE parent_id=?", args: [ids[i]] });
+          for (const r of ch.rows) ids.push(Number(r.id));
+        }
+        for (const id of ids) {
+          await db.execute({ sql: "DELETE FROM posts WHERE id=?", args: [id] });
+          await db.execute({ sql: "DELETE FROM likes WHERE post_id=?", args: [id] });
+        }
+        return send(res, 200, { ok: true, deleted: ids.length });
       }
       return send(res, 404, { error: "not found" });
     }
