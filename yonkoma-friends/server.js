@@ -96,7 +96,10 @@ const server = createServer(async (req, res) => {
 
       if (path === "/api/me" && req.method === "GET") {
         const u = await userOf(req);
-        return send(res, 200, { user: u ? { token: u.token, name: u.name, avatar: u.avatar, avatarImage: u.avatar_image || "" } : null });
+        if (!u) return send(res, 200, { user: null });
+        const fc = await db.execute({ sql: "SELECT COUNT(*) c FROM follows WHERE author_token=?", args: [u.token] });
+        const fg = await db.execute({ sql: "SELECT COUNT(*) c FROM follows WHERE token=?", args: [u.token] });
+        return send(res, 200, { user: { token: u.token, name: u.name, avatar: u.avatar, avatarImage: u.avatar_image || "", followers: Number(fc.rows[0].c), following: Number(fg.rows[0].c) } });
       }
       if (path === "/api/me" && req.method === "POST") {
         const b = await bodyJson(req);
@@ -204,10 +207,27 @@ const server = createServer(async (req, res) => {
           if (!hit) continue;
           let followed = false;
           if (me) { const f = await db.execute({ sql: "SELECT 1 FROM follows WHERE token=? AND author_token=?", args: [me, u.token] }); followed = f.rows.length > 0; }
-          out.push({ token: u.token, name: u.name, avatar: u.avatar, avatarImage: u.avatar_image || "", postCount: all.rows.length, recentPosts: recent, onARoll: recent >= 3, topPost: { id: topPost.id, title: topPost.title || "" }, followed, titles: all.rows.map(p => p.title || "") });
+          const fc2 = await db.execute({ sql: "SELECT COUNT(*) c FROM follows WHERE author_token=?", args: [u.token] });
+          const fg2 = await db.execute({ sql: "SELECT COUNT(*) c FROM follows WHERE token=?", args: [u.token] });
+          out.push({ token: u.token, name: u.name, avatar: u.avatar, avatarImage: u.avatar_image || "", postCount: all.rows.length, recentPosts: recent, onARoll: recent >= 3, topPost: { id: topPost.id, title: topPost.title || "" }, followed, followers: Number(fc2.rows[0].c), following: Number(fg2.rows[0].c), titles: all.rows.map(p => p.title || "") });
         }
         out.sort((a, b) => b.recentPosts - a.recentPosts || b.postCount - a.postCount);
         return send(res, 200, { authors: out });
+      }
+      const mAuthor = path.match(/^\/api\/author\/(.+)$/);
+      if (mAuthor && req.method === "GET") {
+        const token = decodeURIComponent(mAuthor[1]);
+        const u = await db.execute({ sql: "SELECT * FROM users WHERE token=?", args: [token] });
+        if (!u.rows[0]) return send(res, 404, { error: "not found" });
+        const user = u.rows[0];
+        const fc = await db.execute({ sql: "SELECT COUNT(*) c FROM follows WHERE author_token=?", args: [token] });
+        const fg = await db.execute({ sql: "SELECT COUNT(*) c FROM follows WHERE token=?", args: [token] });
+        let followed = false;
+        if (me) { const f = await db.execute({ sql: "SELECT 1 FROM follows WHERE token=? AND author_token=?", args: [me, token] }); followed = f.rows.length > 0; }
+        const pr = await db.execute({ sql: "SELECT * FROM posts WHERE author_token=? AND parent_id IS NULL ORDER BY created DESC LIMIT 50", args: [token] });
+        const posts = [];
+        for (const row of pr.rows) posts.push(await postRow(row, me));
+        return send(res, 200, { user: { token: user.token, name: user.name, avatar: user.avatar, avatarImage: user.avatar_image || "", followers: Number(fc.rows[0].c), following: Number(fg.rows[0].c), followed, mine: me ? me === token : false }, posts });
       }
       const mFollow = path.match(/^\/api\/follow\/(.+)$/);
       if (mFollow && req.method === "POST") {
