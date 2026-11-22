@@ -64,12 +64,12 @@ function postPanels(post) { // normalize to array of panel objects
 }
 function postBodyHtml(post, full) {
   const panels = postPanels(post);
-  if (panels === null) return full ? `<img class="whole-img full" data-zoom="${post.images[0]}" src="${post.images[0]}" alt="">` : `<img class="whole-img" src="${post.images[0]}" alt=""><div class="muted" style="margin-top:6px">▽ タップorクリックで拡大表示</div>`;
+  if (panels === null) return full ? `<img class="whole-img full" data-zoom="${post.images[0]}" src="${post.images[0]}" alt="">` : `<img class="whole-img" src="${post.images[0]}" alt=""><div class="muted" style="margin-top:6px">👆 漫画をタップorクリックで拡大表示</div>`;
   if (!full) {
     const show = post.parentId ? panels.slice(0, 1) : panels.slice(0, 2);
     const total = post.totalPanels || panels.length;
     return `<div class="panels-stack">${show.map((p, i) => panelBox(p, i + 1)).join("")}</div>`
-      + (total > show.length ? `<div class="muted" style="margin-top:6px">▽ タップorクリックで続きを見る（${show.length + 1}・${total}コマ目）</div>` : "");
+      + (total > show.length ? `<div class="muted" style="margin-top:6px">👆 漫画をタップorクリックで続きを見る（${show.length + 1}・${total}コマ目）</div>` : "");
   }
   return `<div style="display:flex;flex-direction:column;gap:8px">${panels.map((p, i) => panelBox(p, i + 1, true)).join("")}</div>`;
 }
