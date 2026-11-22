@@ -167,12 +167,12 @@ async function renderFeed() {
 }
 async function renderRanking() {
   const main = document.getElementById("main");
-  main.innerHTML = `<div class="row" style="margin-bottom:12px"><button class="ghost-btn" id="backFeed">← タイムライン</button><h3 style="margin:0">🏆 👍ランキング</h3></div><div id="rankList"><p class="muted">読み込み中…</p></div>`;
+  main.innerHTML = `<div class="row" style="margin-bottom:12px"><button class="ghost-btn" id="backFeed">← タイムライン</button><h3 style="margin:0">🏆 ユーザーランキング</h3></div><p class="muted">投稿した全作品についた👍の合計が多い順です。</p><div id="rankList"><p class="muted">読み込み中…</p></div>`;
   document.getElementById("backFeed").onclick = renderFeed;
-  const { posts } = await api("/api/ranking");
+  const { authors } = await api("/api/ranking");
   const list = document.getElementById("rankList");
-  list.innerHTML = posts.length ? posts.map((p, i) => `<div class="row" style="align-items:flex-start"><div class="rank-num">${i + 1}</div><div class="grow">${postCardHtml(p, false)}</div></div>`).join("") : `<div class="card"><p>まだ作品がありません。</p></div>`;
-  bindPostActions(list, posts);
+  list.innerHTML = authors.length ? authors.map((a, i) => `<div class="card"><div class="row"><div class="rank-num">${i + 1}</div><span data-author-link="${esc(a.token)}" style="cursor:pointer">${avatarHtml({ authorAvatar: a.avatar, authorAvatarImage: a.avatarImage })}</span><div class="grow"><span class="author-name" data-author-link="${esc(a.token)}" style="cursor:pointer">${esc(a.name)}</span><div class="muted">👍 合計 ${a.totalLikes} ・ 作品 ${a.postCount} 本</div></div></div></div>`).join("") : `<div class="card"><p>まだ作品がありません。</p></div>`;
+  list.querySelectorAll("[data-author-link]").forEach(b => b.onclick = () => openAuthor(b.dataset.authorLink));
 }
 async function renderSearch(prefill) {
   const main = document.getElementById("main");
