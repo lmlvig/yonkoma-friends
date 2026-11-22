@@ -29,13 +29,13 @@ function burstPath() { // starburst polygon for burst bubble background (drawn a
   return pts.join(" ");
 }
 function elHtml(el) {
-  const style = `left:${el.x}%;top:${el.y}%;width:${el.w}%;height:${el.h}%;font-size:${el.font || 15}px;color:${el.color || "#1a1a2e"};z-index:${el.z || 1}`;
+  const style = `left:${el.x}%;top:${el.y}%;width:${el.w}%;height:${el.h}%;font-size:${((el.font || 15) / 4).toFixed(2)}cqw;color:${el.color || "#1a1a2e"};z-index:${el.z || 1}`;
   if (el.type === "mascot") return `<div class="el" style="${style}"><img src="mascot.png" style="width:100%;height:100%;object-fit:contain" alt=""></div>`;
   if (el.type === "shape") {
     const bg = el.fill || "#ffd166";
     if (el.shape === "circle") return `<div class="el" style="${style};background:${bg};border-radius:50%"></div>`;
-    if (el.shape === "star") return `<div class="el" style="${style};font-size:${Math.round((el.h || 20) * 2.4)}px;color:${bg}"><span>★</span></div>`;
-    if (el.shape === "heart") return `<div class="el" style="${style};font-size:${Math.round((el.h || 20) * 2.4)}px;color:${bg}"><span>♥</span></div>`;
+    if (el.shape === "star") return `<div class="el" style="${style};font-size:${((el.h || 20) * 0.6).toFixed(1)}cqw;color:${bg}"><span>★</span></div>`;
+    if (el.shape === "heart") return `<div class="el" style="${style};font-size:${((el.h || 20) * 0.6).toFixed(1)}cqw;color:${bg}"><span>♥</span></div>`;
     return `<div class="el" style="${style};background:${bg};border-radius:6px"></div>`;
   }
   if (el.type === "bubble") {
@@ -50,7 +50,7 @@ function panelInner(panel) {
   return `<div style="position:absolute;inset:0;background:${panel.bg || "#ffffff"}">${(panel.elements || []).map(elHtml).join("")}</div>`;
 }
 function panelBox(panel, num) {
-  return `<div class="panel-box">${num ? `<span class="pnum">${num}枚目</span>` : ""}${panelInner(panel)}</div>`;
+  return `<div class="panel-box">${num ? `<span class="pnum">${num}コマ目</span>` : ""}${panelInner(panel)}</div>`;
 }
 function postPanels(post) { // normalize to array of panel objects
   if (post.mode === "image") {
@@ -64,7 +64,7 @@ function postBodyHtml(post, full) {
   if (panels === null) return `<img class="whole-img" src="${post.images[0]}" alt="">`;
   if (!full) {
     const show = post.parentId ? panels.slice(0, 1) : panels.slice(0, 2);
-    return `<div class="panels-preview" style="${show.length === 1 ? "grid-template-columns:1fr" : ""}">${show.map((p, i) => panelBox(p, i + 1)).join("")}</div>`
+    return `<div class="panels-stack">${show.map((p, i) => panelBox(p, i + 1)).join("")}</div>`
       + (panels.length > show.length ? `<div class="muted" style="margin-top:6px">▽ タップで続きを見る（${show.length + 1}・${panels.length}コマ目）</div>` : "");
   }
   return `<div style="display:flex;flex-direction:column;gap:8px">${panels.map((p, i) => panelBox(p, i + 1)).join("")}</div>`;
@@ -305,7 +305,7 @@ function initEditor(single) {
 function renderEditorInto(container) {
   const p = ED.panels[ED.cur];
   container.innerHTML = `
-    ${ED.panels.length > 1 ? `<div class="panel-tabs">${ED.panels.map((_, i) => `<button data-pt="${i}" class="${i === ED.cur ? "on" : ""}">${i + 1}枚目</button>`).join("")}</div>` : `<div class="muted" style="margin-bottom:6px">続きは1コマだけです</div>`}
+    ${ED.panels.length > 1 ? `<div class="panel-tabs">${ED.panels.map((_, i) => `<button data-pt="${i}" class="${i === ED.cur ? "on" : ""}">${i + 1}コマ目</button>`).join("")}</div>` : `<div class="muted" style="margin-bottom:6px">続きは1コマだけです</div>`}
     <div class="ed-canvas" id="edCanvas">${panelInner(p)}</div>
     <div class="tool-row">
       <button data-tool="bubble-round">💬 丸吹き出し</button>
@@ -384,7 +384,7 @@ function renderProps(container) {
     </div></div>`;
   const t = box.querySelector("#prText"); if (t) t.oninput = () => { el.text = t.value; const n = document.querySelector(`#edCanvas [data-ei="${ED.sel}"] span`); if (n) n.textContent = t.value; };
   box.querySelectorAll("[data-fill]").forEach(b => b.onclick = () => { if (el.type === "text") el.color = b.dataset.fill; else el.fill = b.dataset.fill; renderEditorInto(container); });
-  const f = box.querySelector("#prFont"); if (f) f.oninput = () => { el.font = Number(f.value); renderEditorInto(container); };
+  const f = box.querySelector("#prFont"); if (f) f.oninput = () => { el.font = Number(f.value); const n = document.querySelector(`#edCanvas [data-ei="${ED.sel}"]`); if (n) n.style.fontSize = ((el.font / 4)).toFixed(2) + "cqw"; };
   box.querySelector("#prDel").onclick = () => { panel.elements.splice(ED.sel, 1); ED.sel = null; renderEditorInto(container); };
   box.querySelector("#prDup").onclick = () => { const c = JSON.parse(JSON.stringify(el)); c.x = Math.min(90, c.x + 4); c.y = Math.min(90, c.y + 4); c.z = panel.elements.length + 1; panel.elements.push(c); ED.sel = panel.elements.length - 1; renderEditorInto(container); };
   box.querySelector("#prFront").onclick = () => { el.z = Math.max(...panel.elements.map(e => e.z || 1)) + 1; renderEditorInto(container); };
@@ -432,29 +432,35 @@ function renderCreate(parentPost) {
         <div style="height:8px"></div>${imgData.whole ? `<img class="whole-img" src="${imgData.whole}">` : `<p class="muted">描いた4コマ全体の写真を1枚選んでください。</p>`}`;
       document.getElementById("imWhole").onchange = async e => { const f = e.target.files[0]; if (f) { imgData.whole = await fileToDataUrl(f); drawImage(); } };
     } else {
-      area.innerHTML = `<div class="panels-preview">${imgData.panels.map((s, i) => `<label class="panel-box" style="cursor:pointer">${s ? `<img class="panel-img" src="${s}">` : `<span class="pnum">${i + 1}枚目</span><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px">＋</span>`}<input type="file" data-pi="${i}" accept="image/*" class="hidden"></label>`).join("")}</div>`;
+      area.innerHTML = `<div class="panels-preview">${imgData.panels.map((s, i) => `<label class="panel-box" style="cursor:pointer">${s ? `<img class="panel-img" src="${s}">` : `<span class="pnum">${i + 1}コマ目</span><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px">＋</span>`}<input type="file" data-pi="${i}" accept="image/*" class="hidden"></label>`).join("")}</div>`;
       area.querySelectorAll("[data-pi]").forEach(inp => inp.onchange = async e => { const f = e.target.files[0]; if (f) { imgData.panels[Number(inp.dataset.pi)] = await fileToDataUrl(f); drawImage(); } });
     }
   };
   document.getElementById("modeEd").onclick = () => { mode = "editor"; drawEditor(); };
   document.getElementById("modeImg").onclick = () => { mode = "image"; drawImage(); };
   drawEditor();
+  const postKey = "ck" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  let submitting = false;
   document.getElementById("postBtn").onclick = async () => {
+    if (submitting) return;
+    const btn = document.getElementById("postBtn");
     try {
       let payload;
       if (mode === "editor") {
-        payload = { mode: "editor", panels: ED.panels, images: [], parentId: parentPost ? parentPost.id : null, title: isCont ? "" : document.getElementById("postTitle").value };
+        payload = { mode: "editor", panels: ED.panels, images: [], parentId: parentPost ? parentPost.id : null, title: isCont ? "" : document.getElementById("postTitle").value, clientKey: postKey };
       } else {
         let images;
         if (isCont) { if (!imgData.single) return toast("写真を選んでください"); images = [imgData.single]; }
         else if (imgData.kind === "whole") { if (!imgData.whole) return toast("写真を選んでください"); images = [imgData.whole]; }
         else { if (imgData.panels.some(s => !s)) return toast("4枚すべて選んでください"); images = imgData.panels; }
-        payload = { mode: "image", panels: [], images, parentId: parentPost ? parentPost.id : null, title: isCont ? "" : document.getElementById("postTitle").value };
+        payload = { mode: "image", panels: [], images, parentId: parentPost ? parentPost.id : null, title: isCont ? "" : document.getElementById("postTitle").value, clientKey: postKey };
       }
+      submitting = true; btn.disabled = true; btn.textContent = "投稿中…";
       await api("/api/posts", { method: "POST", body: JSON.stringify(payload) });
       toast(isCont ? "続きを投稿しました！" : "投稿しました！");
       VIEW = "feed"; SORT = "new"; renderShell();
-    } catch (e) { toast("投稿できませんでした：" + e.message); }
+      if (isCont) setTimeout(() => openChain(parentPost.id), 400);
+    } catch (e) { submitting = false; btn.disabled = false; btn.textContent = isCont ? "続きを投稿する" : "投稿する"; toast("投稿できませんでした：" + e.message); }
   };
 }
 

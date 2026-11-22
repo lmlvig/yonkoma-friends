@@ -33,7 +33,8 @@ nav.bottom button .ic{display:block;font-size:20px;line-height:1.2}
 .chip{border:2px solid var(--border);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 14px;font-weight:800;font-size:13px}
 .chip.on{background:var(--sunny);color:#1a1a2e;border-color:#1a1a2e}
 .panels-preview{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.panel-box{position:relative;border:2.5px solid #1a1a2e;border-radius:6px;overflow:hidden;background:#fff;aspect-ratio:1}
+.panel-box{position:relative;border:2.5px solid #1a1a2e;border-radius:6px;overflow:hidden;background:#fff;aspect-ratio:1;container-type:inline-size}
+.panels-stack{display:flex;flex-direction:column;gap:6px}
 .panel-box .pnum{position:absolute;top:4px;left:6px;z-index:5;font-size:11px;font-weight:900;color:#1a1a2e;background:rgba(255,255,255,.8);border-radius:4px;padding:0 4px}
 .panel-box img.full{width:100%;height:100%;object-fit:cover;display:block}
 .whole-img{width:100%;max-height:62dvh;object-fit:cover;border-radius:10px;border:2px solid var(--border);display:block}
@@ -64,7 +65,7 @@ input[type=text],input[type=password],textarea{width:100%;border:2px solid var(-
 .mode-row{display:flex;gap:10px;margin-bottom:14px}
 .mode-row button{flex:1;border-radius:14px;padding:14px 8px;font-weight:900;font-size:15px;border:none;color:#fff}
 .ed-wrap{background:var(--surface);border:2px solid var(--border);border-radius:14px;padding:10px}
-.ed-canvas{position:relative;width:100%;aspect-ratio:1;border:3px solid #1a1a2e;border-radius:8px;overflow:hidden;touch-action:none;background:#fff}
+.ed-canvas{position:relative;width:100%;aspect-ratio:1;border:3px solid #1a1a2e;border-radius:8px;overflow:hidden;touch-action:none;background:#fff;container-type:inline-size}
 .ed-canvas .el{cursor:grab}
 .ed-canvas .el.sel{outline:2.5px dashed var(--accent);outline-offset:1px}
 .ed-canvas .handle{position:absolute;right:-10px;bottom:-10px;width:22px;height:22px;background:var(--accent);border-radius:50%;border:2px solid #fff;z-index:9;cursor:nwse-resize}
