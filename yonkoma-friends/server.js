@@ -70,6 +70,7 @@ async function postRow(row, me) {
   return {
     id: row.id, title: row.title || "", mode: row.mode,
     panels: JSON.parse(row.panels || "[]"), images: JSON.parse(row.images || "[]"),
+    totalPanels: row.mode === "image" ? JSON.parse(row.images || "[]").length : JSON.parse(row.panels || "[]").length,
     parentId: row.parent_id || null, parent, created: row.created,
     authorToken: row.author_token, authorName: author.name, authorAvatar: author.avatar, authorAvatarImage: author.avatar_image || "",
     likeCount: Number(lc.rows[0].c), liked, continuationCount: Number(cc.rows[0].c),
@@ -79,9 +80,11 @@ async function postRow(row, me) {
 
 const FAST_SQL = `SELECT p.*, u.name AS author_name, u.avatar AS author_avatar, u.avatar_image AS author_avatar_image, (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count, EXISTS(SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.token = ?) AS liked, (SELECT COUNT(*) FROM posts c WHERE c.parent_id = p.id) AS cont_count, EXISTS(SELECT 1 FROM follows f WHERE f.token = ? AND f.author_token = p.author_token) AS followed, pp.title AS parent_title, pu.name AS parent_author_name FROM posts p JOIN users u ON u.token = p.author_token LEFT JOIN posts pp ON pp.id = p.parent_id LEFT JOIN users pu ON pu.token = pp.author_token`;
 function fastPost(row, me) {
+  const panels = JSON.parse(row.panels || "[]");
+  const images = JSON.parse(row.images || "[]");
   return {
     id: row.id, title: row.title || "", mode: row.mode,
-    panels: JSON.parse(row.panels || "[]"), images: JSON.parse(row.images || "[]"),
+    panels, images, totalPanels: row.mode === "image" ? images.length : panels.length,
     parentId: row.parent_id || null,
     parent: row.parent_id ? { id: row.parent_id, title: row.parent_title || "", authorName: row.parent_author_name || "ななし作家" } : null,
     created: row.created,
