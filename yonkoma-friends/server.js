@@ -18,6 +18,7 @@ await db.batch([
   `CREATE TABLE IF NOT EXISTS likes (post_id INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (post_id, token))`,
   `CREATE TABLE IF NOT EXISTS follows (token TEXT NOT NULL, author_token TEXT NOT NULL, PRIMARY KEY (token, author_token))`,
   `CREATE TABLE IF NOT EXISTS sessions (sid TEXT PRIMARY KEY, created INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS post_keys (key TEXT PRIMARY KEY, post_id INTEGER NOT NULL)`,
 ], "write");
 
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml" };
@@ -109,7 +110,7 @@ const server = createServer(async (req, res) => {
       }
       if (path === "/api/feed" && req.method === "GET") {
         const sort = url.searchParams.get("sort") || "new";
-        const r = await db.execute("SELECT * FROM posts ORDER BY created DESC LIMIT 200");
+        const r = await db.execute("SELECT * FROM posts WHERE parent_id IS NULL ORDER BY created DESC LIMIT 200");
         let posts = [];
         for (const row of r.rows) posts.push(await postRow(row, me));
         if (sort === "popular") posts.sort((a, b) => b.likeCount - a.likeCount || b.created - a.created);
@@ -131,7 +132,13 @@ const server = createServer(async (req, res) => {
           if (mode === "editor" && total !== 4) return send(res, 400, { error: "4コマで投稿してください" });
           if (mode === "image" && !(total === 1 || total === 4)) return send(res, 400, { error: "画像は1枚（全体）か4枚（コマごと）で投稿してください" });
         }
+        const clientKey = typeof b.clientKey === "string" ? b.clientKey.slice(0, 64) : "";
+        if (clientKey) {
+          const dup = await db.execute({ sql: "SELECT post_id FROM post_keys WHERE key=?", args: [me + ":" + clientKey] });
+          if (dup.rows[0]) return send(res, 200, { id: Number(dup.rows[0].post_id), duplicate: true });
+        }
         const ins = await db.execute({ sql: "INSERT INTO posts (author_token, title, mode, panels, images, parent_id, created) VALUES (?,?,?,?,?,?,?)", args: [me, String(b.title || "").slice(0, 60), mode, JSON.stringify(panels).slice(0, 900000), JSON.stringify(images).slice(0, 9000000), parentId, Date.now()] });
+        if (clientKey) await db.execute({ sql: "INSERT OR IGNORE INTO post_keys (key, post_id) VALUES (?,?)", args: [me + ":" + clientKey, Number(ins.lastInsertRowid)] });
         return send(res, 200, { id: Number(ins.lastInsertRowid) });
       }
       const mLike = path.match(/^\/api\/posts\/(\d+)\/like$/);
