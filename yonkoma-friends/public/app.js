@@ -451,7 +451,7 @@ function renderCreate(parentPost) {
     </div>
     <div class="ed-wrap" id="createBody"></div>
     <div style="height:12px"></div>
-    ${isCont ? "" : `<input type="text" id="postTitle" placeholder="タイトル（画像投稿のときは空欄でもOK）" maxlength="60">`}
+    ${isCont ? "" : `<input type="text" id="postTitle" placeholder="タイトル" maxlength="60">`}
     <div style="height:10px"></div>
     <button class="primary-btn" id="postBtn" style="width:100%">${isCont ? "続きを投稿する" : "投稿する"}</button>`;
   window.scrollTo(0, 0);
