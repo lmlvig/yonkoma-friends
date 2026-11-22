@@ -62,7 +62,7 @@ function postPanels(post) { // normalize to array of panel objects
 }
 function postBodyHtml(post, full) {
   const panels = postPanels(post);
-  if (panels === null) return full ? `<img class="whole-img full" data-zoom="${post.images[0]}" src="${post.images[0]}" alt="">` : `<img class="whole-img" src="${post.images[0]}" alt="">`;
+  if (panels === null) return full ? `<img class="whole-img full" data-zoom="${post.images[0]}" src="${post.images[0]}" alt="">` : `<img class="whole-img" src="${post.images[0]}" alt=""><div class="muted" style="margin-top:6px">▽ タップで拡大表示</div>`;
   if (!full) {
     const show = post.parentId ? panels.slice(0, 1) : panels.slice(0, 2);
     return `<div class="panels-stack">${show.map((p, i) => panelBox(p, i + 1)).join("")}</div>`
@@ -93,7 +93,7 @@ function postCardHtml(post, full) {
 /* ---------- gate & profile ---------- */
 function renderGate() {
   $root.innerHTML = `<div class="gate-wrap"><div class="gate-card">
-    <img src="mascot.png" alt=""><h2>4コマ漫画SNS</h2>
+    <img src="mascot.png" alt=""><h2>4コマ漫画広場</h2>
     <p class="muted">友達限定テスト版です。合言葉を入れてください。</p>
     <input type="password" id="gatePw" placeholder="合言葉">
     <div class="err">${esc(gateError)}</div>
@@ -133,7 +133,7 @@ async function boot() {
 /* ---------- shell & views ---------- */
 function renderShell() {
   $root.innerHTML = `<div id="app">
-    <header class="top"><img class="mascot" src="mascot.png" alt=""><div><div class="title">4コマ漫画SNS</div><div class="sub">友達限定テスト版</div></div></header>
+    <header class="top"><img class="mascot" src="mascot.png" alt=""><div><div class="title">4コマ漫画広場</div><div class="sub">友達限定テスト版</div></div></header>
     <main id="main"></main>
     <nav class="bottom">
       <button data-nav="feed" class="${VIEW === "feed" ? "on" : ""}"><span class="ic">🏠</span>タイムライン</button>
