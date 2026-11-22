@@ -53,7 +53,7 @@ function panelInner(panel, zoomable) {
   return `<div style="position:absolute;inset:0;background:${panel.bg || "#ffffff"}">${(panel.elements || []).map(elHtml).join("")}</div>`;
 }
 function panelBox(panel, num, zoomable) {
-  return `<div class="panel-box">${num ? `<span class="pnum">${num}コマ目</span>` : ""}${panelInner(panel, zoomable)}</div>`;
+  return `<div class="panel-box">${panelInner(panel, zoomable)}</div>`;
 }
 function postPanels(post) { // normalize to array of panel objects
   if (post.mode === "image") {
@@ -367,7 +367,7 @@ function renderEditorInto(container) {
       <button data-tool="shape-heart">❤️ ハート</button>
       <button data-tool="mascot">🐰 マスコット</button>
     </div>
-    <p class="muted">人物や物は、テキストにキーボードの絵文字を入れて表現してね（例：🏃‍♂️‍➡️🧍‍♂️🧍‍♀️🧎‍♂️‍➡️🚶‍♀️‍➡️🚗🚐🎾🏀🍎🍐）。要素はドラッグで移動、右下の●で大きさ変更。</p>
+    <p class="muted">人物や物は、テキストにキーボードの絵文字を入れて表現してね（例：🏃‍♂️‍➡️🧍‍♂️🧍‍♀️🧎‍♂️‍➡️🚶‍♀️‍➡️🚗🦔🎾🏀🍎🍐）。要素はドラッグで移動、右下の●で大きさ変更。</p>
     <div id="edProps"></div>
     <div class="row"><span class="muted">コマの背景色</span><div class="palette" id="bgPal">${PALETTE.map(c => `<button data-bg="${c}" style="background:${c}" class="${p.bg === c ? "on" : ""}"></button>`).join("")}</div></div>`;
   container.querySelectorAll("[data-pt]").forEach(b => b.onclick = () => { ED.cur = Number(b.dataset.pt); ED.sel = null; renderEditorInto(container); });
