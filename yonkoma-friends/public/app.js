@@ -377,7 +377,7 @@ function renderProps(container) {
     ${isBubbleOrText ? `<input type="text" id="prText" value="${esc(el.text || "")}" placeholder="文字（絵文字もOK）">` : ""}
     ${hasFill ? `<div class="row"><span class="muted">色</span><div class="palette">${PALETTE.map(c => `<button data-fill="${c}" style="background:${c}" class="${el.fill === c ? "on" : ""}"></button>`).join("")}</div></div>` : ""}
     ${el.type === "text" ? `<div class="row"><span class="muted">文字色</span><div class="palette">${PALETTE.map(c => `<button data-fill="${c}" style="background:${c}" class="${el.color === c ? "on" : ""}"></button>`).join("")}</div></div>` : ""}
-    ${isBubbleOrText ? `<div class="row"><span class="muted">文字サイズ</span><input type="range" id="prFont" min="9" max="34" value="${el.font || 15}" style="flex:1"></div>` : ""}
+    ${isBubbleOrText ? `<div class="row"><span class="muted">文字サイズ</span><input type="range" id="prFont" min="9" max="64" value="${el.font || 15}" style="flex:1"></div>` : ""}
     <div class="tool-row">
       <button id="prFront">前面へ</button><button id="prBack">背面へ</button>
       <button id="prDup">複製</button><button id="prDel">削除</button>
