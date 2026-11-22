@@ -17,8 +17,9 @@ async function api(path, opts = {}) {
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
 function avatarHtml(a, size) {
-  if (a.authorAvatarImage || a.avatarImage) return `<div class="avatar"><img src="${esc(a.authorAvatarImage || a.avatarImage)}" alt=""></div>`;
-  return `<div class="avatar">${esc(a.authorAvatar || a.avatar || "🐱")}</div>`;
+  const st = size ? ` style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.55)}px"` : "";
+  if (a.authorAvatarImage || a.avatarImage) return `<div class="avatar"${st}><img src="${esc(a.authorAvatarImage || a.avatarImage)}" alt=""></div>`;
+  return `<div class="avatar"${st}>${esc(a.authorAvatar || a.avatar || "🐱")}</div>`;
 }
 function fmtDate(ts) { const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 
@@ -42,15 +43,15 @@ function elHtml(el) {
     if (el.shape === "burst") return `<div class="el burst" style="${style}"><svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><polygon points="${burstPath()}" fill="${el.fill || "#fff"}" stroke="#1a1a2e" stroke-width="2.5"/></svg><span style="position:relative;z-index:2">${esc(el.text || "")}</span></div>`;
     return `<div class="el bubble ${el.shape || "round"}" style="${style};background:${el.fill || "#ffffff"}"><span>${esc(el.text || "")}</span></div>`;
   }
-  return `<div class="el" style="${style};font-weight:800"><span>${esc(el.text || "")}</span></div>`;
+  return `<div class="el txt" style="${style};font-weight:800"><span>${esc(el.text || "")}</span></div>`;
 }
-function panelInner(panel) {
+function panelInner(panel, zoomable) {
   if (!panel) return "";
-  if (panel.image) return `<img class="panel-img" src="${panel.image}" alt="">`;
+  if (panel.image) return `<img class="panel-img" ${zoomable ? `data-zoom="${panel.image}" ` : ""}src="${panel.image}" alt="">`;
   return `<div style="position:absolute;inset:0;background:${panel.bg || "#ffffff"}">${(panel.elements || []).map(elHtml).join("")}</div>`;
 }
-function panelBox(panel, num) {
-  return `<div class="panel-box">${num ? `<span class="pnum">${num}コマ目</span>` : ""}${panelInner(panel)}</div>`;
+function panelBox(panel, num, zoomable) {
+  return `<div class="panel-box">${num ? `<span class="pnum">${num}コマ目</span>` : ""}${panelInner(panel, zoomable)}</div>`;
 }
 function postPanels(post) { // normalize to array of panel objects
   if (post.mode === "image") {
@@ -61,19 +62,19 @@ function postPanels(post) { // normalize to array of panel objects
 }
 function postBodyHtml(post, full) {
   const panels = postPanels(post);
-  if (panels === null) return `<img class="whole-img" src="${post.images[0]}" alt="">`;
+  if (panels === null) return full ? `<img class="whole-img full" data-zoom="${post.images[0]}" src="${post.images[0]}" alt="">` : `<img class="whole-img" src="${post.images[0]}" alt="">`;
   if (!full) {
     const show = post.parentId ? panels.slice(0, 1) : panels.slice(0, 2);
     return `<div class="panels-stack">${show.map((p, i) => panelBox(p, i + 1)).join("")}</div>`
       + (panels.length > show.length ? `<div class="muted" style="margin-top:6px">▽ タップで続きを見る（${show.length + 1}・${panels.length}コマ目）</div>` : "");
   }
-  return `<div style="display:flex;flex-direction:column;gap:8px">${panels.map((p, i) => panelBox(p, i + 1)).join("")}</div>`;
+  return `<div style="display:flex;flex-direction:column;gap:8px">${panels.map((p, i) => panelBox(p, i + 1, true)).join("")}</div>`;
 }
 function postCardHtml(post, full) {
   return `<div class="card" data-post="${post.id}">
     <div class="row">
-      ${avatarHtml(post)}
-      <div class="grow"><span class="author-name">${esc(post.authorName)}</span>
+      <span data-act="author" data-post="${post.id}" style="cursor:pointer">${avatarHtml(post)}</span>
+      <div class="grow"><span class="author-name" data-act="author" data-post="${post.id}" style="cursor:pointer">${esc(post.authorName)}</span>
       ${post.authorFollowed && !post.mine ? ` <span class="badge">フォロー中</span>` : ""}
       <div class="muted">${fmtDate(post.created)}${post.parent ? ` ・ 「${esc(post.parent.title || "（タイトルなし）")}」（${esc(post.parent.authorName)}）の続き` : ""}</div></div>
       ${!post.mine ? `<button class="ghost-btn" data-act="follow" data-post="${post.id}">${post.authorFollowed ? "フォロー中" : "フォロー"}</button>` : ""}
@@ -186,15 +187,16 @@ async function renderSearch(prefill) {
     list.innerHTML = html || `<div class="card"><p>見つかりませんでした。</p></div>`;
     list.querySelectorAll("[data-follow]").forEach(b => b.onclick = async () => { await api("/api/follow/" + encodeURIComponent(b.dataset.follow), { method: "POST", body: "{}" }); load(); });
     list.querySelectorAll("[data-top]").forEach(b => b.onclick = () => { VIEW = "feed"; renderShell(); setTimeout(() => openPost(Number(b.dataset.top)), 350); });
+    list.querySelectorAll("[data-author-link]").forEach(b => b.onclick = () => openAuthor(b.dataset.authorLink));
   };
   document.getElementById("qBtn").onclick = load;
   document.getElementById("q").onkeydown = e => { if (e.key === "Enter") load(); };
   load();
 }
 function authorCardHtml(a) {
-  return `<div class="card"><div class="row">${avatarHtml({ authorAvatar: a.avatar, authorAvatarImage: a.avatarImage })}
-    <div class="grow"><span class="author-name">${esc(a.name)}</span> ${a.onARoll ? `<span class="badge">🔥 筆が乗ってる！</span>` : ""}
-    <div class="muted">投稿 ${a.postCount} 本${a.onARoll ? ` ・ 直近7日で${a.recentPosts}本投稿` : ""}</div></div>
+  return `<div class="card"><div class="row"><span data-author-link="${esc(a.token)}" style="cursor:pointer">${avatarHtml({ authorAvatar: a.avatar, authorAvatarImage: a.avatarImage })}</span>
+    <div class="grow"><span class="author-name" data-author-link="${esc(a.token)}" style="cursor:pointer">${esc(a.name)}</span> ${a.onARoll ? `<span class="badge">🔥 筆が乗ってる！</span>` : ""}
+    <div class="muted">投稿 ${a.postCount} 本 ・ フォロー ${a.following ?? 0} ・ フォロワー ${a.followers ?? 0}${a.onARoll ? ` ・ 直近7日で${a.recentPosts}本投稿` : ""}</div></div>
     ${a.token !== myToken ? `<button class="ghost-btn" data-follow="${esc(a.token)}">${a.followed ? "フォロー中" : "フォロー"}</button>` : ""}</div>
     <div style="margin-top:8px"><button class="linkish" data-top="${a.topPost.id}">代表作：「${esc(a.topPost.title || "（タイトルなし）")}」を見る →</button></div></div>`;
 }
@@ -203,6 +205,7 @@ async function renderMypage() {
   const avatars = ["🐱", "🐶", "🦊", "🐰", "🐻", "🐼", "🦁", "🐸", "🎨", "⭐"];
   main.innerHTML = `<div class="card"><h3>プロフィール</h3>
     <div class="row">${avatarHtml({ authorAvatar: ME.avatar, authorAvatarImage: ME.avatarImage })}<div class="grow"><input type="text" id="mpName" value="${esc(ME.name)}" maxlength="30"></div></div>
+    <div class="muted" style="margin-top:6px">フォロー中 ${ME.following ?? 0} ・ フォロワー ${ME.followers ?? 0}</div>
     <div class="palette" id="mpAvatars">${avatars.map(a => `<button data-av="${a}" style="background:var(--surface2);font-size:18px" class="${ME.avatar === a && !ME.avatarImage ? "on" : ""}">${a}</button>`).join("")}</div>
     <div class="row"><label class="ghost-btn" style="display:inline-block">🖼 アルバムからアイコン画像<input type="file" id="mpImg" accept="image/*" class="hidden"></label>
     ${ME.avatarImage ? `<button class="ghost-btn" id="mpImgClear">画像をやめる</button>` : ""}</div>
@@ -239,6 +242,7 @@ function bindPostActions(container, posts) {
       } else if (act === "open") openPost(id);
       else if (act === "chain") openChain(id);
       else if (act === "continue") { VIEW = "create"; renderShell(); setTimeout(() => renderCreate(post), 50); }
+      else if (act === "author") openAuthor(post.authorToken);
       else if (act === "follow") {
         const r = await api("/api/follow/" + encodeURIComponent(post.authorToken), { method: "POST", body: "{}" });
         toast(r.followed ? "フォローしました" : "フォローを外しました"); renderShell();
@@ -277,6 +281,24 @@ async function openChain(rootId) {
     <div id="ovBody">${chain.map((p, i) => `${i ? `<div class="chain-arrow">⬇ ${esc(p.authorName)} の続き</div>` : ""}<div class="chain-item">${postCardHtml(p, true)}</div>`).join("")}</div>`);
   document.getElementById("ovClose").onclick = closeOverlay;
   bindPostActions(document.getElementById("ovBody"), chain);
+}
+
+async function openAuthor(token) {
+  const { user, posts } = await api("/api/author/" + encodeURIComponent(token));
+  showOverlay(`
+    <div class="row" style="justify-content:space-between"><strong>プロフィール</strong><button class="ghost-btn" id="ovClose">✕ 閉じる</button></div>
+    <div class="card" style="text-align:center">
+      <div style="display:flex;justify-content:center">${avatarHtml({ authorAvatar: user.avatar, authorAvatarImage: user.avatarImage }, 72)}</div>
+      <h3 style="margin:8px 0 2px">${esc(user.name)}</h3>
+      <div class="muted">フォロー中 ${user.following} ・ フォロワー ${user.followers} ・ 投稿 ${posts.length} 本</div>
+      ${user.mine ? "" : `<button class="primary-btn" id="ovFollow" style="margin-top:10px">${user.followed ? "フォロー中（タップで解除）" : "フォローする"}</button>`}
+    </div>
+    <h3>作品</h3>
+    <div id="ovBody">${posts.length ? posts.map(p => postCardHtml(p, false)).join("") : `<p class="muted">まだ作品がありません。</p>`}</div>`);
+  document.getElementById("ovClose").onclick = closeOverlay;
+  const fb = document.getElementById("ovFollow");
+  if (fb) fb.onclick = async () => { await api("/api/follow/" + encodeURIComponent(token), { method: "POST", body: "{}" }); openAuthor(token); };
+  bindPostActions(document.getElementById("ovBody"), posts);
 }
 
 /* ---------- images ---------- */
@@ -345,7 +367,7 @@ function renderEditorInto(container) {
       const sx = ev.clientX, sy = ev.clientY, ox = el.x, oy = el.y, ow = el.w, oh = el.h;
       const move = e2 => {
         const dx = (e2.clientX - sx) / rect.width * 100, dy = (e2.clientY - sy) / rect.height * 100;
-        if (isHandle) { el.w = Math.max(8, Math.min(95, ow + dx)); el.h = Math.max(8, Math.min(95, oh + dy)); }
+        if (isHandle) { el.w = Math.max(8, Math.min(95, ow + dx)); el.h = Math.max(8, Math.min(95, oh + dy)); if (el.type === "text") { el.font = Math.max(9, Math.min(204, Math.round(el.h * 3))); node2.style.fontSize = (el.font / 4).toFixed(2) + "cqw"; } }
         else { el.x = Math.max(0, Math.min(97, ox + dx)); el.y = Math.max(0, Math.min(97, oy + dy)); }
         node2.style.left = el.x + "%"; node2.style.top = el.y + "%"; node2.style.width = el.w + "%"; node2.style.height = el.h + "%";
       };
@@ -377,14 +399,14 @@ function renderProps(container) {
     ${isBubbleOrText ? `<input type="text" id="prText" value="${esc(el.text || "")}" placeholder="文字（絵文字もOK）">` : ""}
     ${hasFill ? `<div class="row"><span class="muted">色</span><div class="palette">${PALETTE.map(c => `<button data-fill="${c}" style="background:${c}" class="${el.fill === c ? "on" : ""}"></button>`).join("")}</div></div>` : ""}
     ${el.type === "text" ? `<div class="row"><span class="muted">文字色</span><div class="palette">${PALETTE.map(c => `<button data-fill="${c}" style="background:${c}" class="${el.color === c ? "on" : ""}"></button>`).join("")}</div></div>` : ""}
-    ${isBubbleOrText ? `<div class="row"><span class="muted">文字サイズ</span><input type="range" id="prFont" min="9" max="64" value="${el.font || 15}" style="flex:1"></div>` : ""}
+    ${isBubbleOrText ? `<div class="row"><span class="muted">文字サイズ</span><input type="range" id="prFont" min="9" max="204" value="${el.font || 15}" style="flex:1"></div>` : ""}
     <div class="tool-row">
       <button id="prFront">前面へ</button><button id="prBack">背面へ</button>
       <button id="prDup">複製</button><button id="prDel">削除</button>
     </div></div>`;
   const t = box.querySelector("#prText"); if (t) t.oninput = () => { el.text = t.value; const n = document.querySelector(`#edCanvas [data-ei="${ED.sel}"] span`); if (n) n.textContent = t.value; };
   box.querySelectorAll("[data-fill]").forEach(b => b.onclick = () => { if (el.type === "text") el.color = b.dataset.fill; else el.fill = b.dataset.fill; renderEditorInto(container); });
-  const f = box.querySelector("#prFont"); if (f) f.oninput = () => { el.font = Number(f.value); const n = document.querySelector(`#edCanvas [data-ei="${ED.sel}"]`); if (n) n.style.fontSize = ((el.font / 4)).toFixed(2) + "cqw"; };
+  const f = box.querySelector("#prFont"); if (f) f.oninput = () => { el.font = Number(f.value); const need = Math.ceil(el.font / 3) + (el.type === "bubble" ? 6 : 2); if (el.h < need) el.h = Math.min(95, need); const n = document.querySelector(`#edCanvas [data-ei="${ED.sel}"]`); if (n) { n.style.fontSize = ((el.font / 4)).toFixed(2) + "cqw"; n.style.height = el.h + "%"; } };
   box.querySelector("#prDel").onclick = () => { panel.elements.splice(ED.sel, 1); ED.sel = null; renderEditorInto(container); };
   box.querySelector("#prDup").onclick = () => { const c = JSON.parse(JSON.stringify(el)); c.x = Math.min(90, c.x + 4); c.y = Math.min(90, c.y + 4); c.z = panel.elements.length + 1; panel.elements.push(c); ED.sel = panel.elements.length - 1; renderEditorInto(container); };
   box.querySelector("#prFront").onclick = () => { el.z = Math.max(...panel.elements.map(e => e.z || 1)) + 1; renderEditorInto(container); };
@@ -463,5 +485,19 @@ function renderCreate(parentPost) {
     } catch (e) { submitting = false; btn.disabled = false; btn.textContent = isCont ? "続きを投稿する" : "投稿する"; toast("投稿できませんでした：" + e.message); }
   };
 }
+
+function showZoom(src) {
+  closeZoom();
+  const z = document.createElement("div");
+  z.className = "zoombox"; z.id = "zoombox";
+  z.innerHTML = `<img src="${src}" alt="">`;
+  z.onclick = closeZoom;
+  document.body.appendChild(z);
+}
+function closeZoom() { const z = document.getElementById("zoombox"); if (z) z.remove(); }
+document.addEventListener("click", e => {
+  const t = e.target.closest ? e.target.closest("[data-zoom]") : null;
+  if (t) { e.stopPropagation(); showZoom(t.getAttribute("data-zoom")); }
+}, true);
 
 boot();
