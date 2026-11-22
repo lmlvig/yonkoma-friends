@@ -2,6 +2,8 @@
 const $root = document.getElementById("root");
 let myToken = localStorage.getItem("yk_token");
 if (!myToken) { myToken = "u" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("yk_token", myToken); }
+const ADMINPW = () => localStorage.getItem("yk_admin") || "";
+
 let ME = null;
 let VIEW = "feed"; // feed | search | create | mypage
 let SORT = "new";
@@ -86,6 +88,7 @@ function postCardHtml(post, full) {
       <button class="ghost-btn" data-act="continue" data-post="${post.id}">✏️ 勝手に続きを書く</button>
       ${post.continuationCount ? `<button class="ghost-btn" data-act="chain" data-post="${post.id}">📚 書かれた続きを見る（${post.continuationCount}）</button>` : ""}
       ${post.mine ? `<button class="ghost-btn" data-act="del" data-post="${post.id}">削除</button>` : ""}
+      ${ADMINPW() ? `<button class="ghost-btn" data-act="admin-del" data-post="${post.id}" style="color:#d6336c;border-color:#d6336c">🗑 管理者削除</button>` : ""}
     </div>
   </div>`;
 }
@@ -210,6 +213,7 @@ async function renderMypage() {
     <div class="row"><label class="ghost-btn" style="display:inline-block">🖼 アルバムからアイコン画像<input type="file" id="mpImg" accept="image/*" class="hidden"></label>
     ${ME.avatarImage ? `<button class="ghost-btn" id="mpImgClear">画像をやめる</button>` : ""}</div>
     <div style="height:8px"></div><button class="primary-btn" id="mpSave">保存する</button></div>
+    <div class="card"><h3>管理者</h3><div id="adminArea"></div></div>
     <h3 style="margin:14px 2px 8px">自分の作品</h3><div id="myPosts"><p class="muted">読み込み中…</p></div>`;
   let selAvatar = ME.avatar, selImage = ME.avatarImage || "";
   main.querySelectorAll("[data-av]").forEach(b => b.onclick = () => { selAvatar = b.dataset.av; selImage = ""; main.querySelectorAll("[data-av]").forEach(x => x.classList.remove("on")); b.classList.add("on"); });
@@ -220,6 +224,22 @@ async function renderMypage() {
     await api("/api/me", { method: "POST", body: JSON.stringify({ token: myToken, name, avatar: selAvatar, avatarImage: selImage }) });
     const m = await api("/api/me"); ME = m.user; toast("保存しました"); renderMypage();
   };
+  const drawAdmin = () => {
+    const area = document.getElementById("adminArea"); if (!area) return;
+    if (ADMINPW()) {
+      area.innerHTML = `<p class="muted">管理者モード有効中です。各作品に「🗑 管理者削除」ボタンが表示されます。</p><button class="ghost-btn" id="admOff">管理者モードを解除する</button>`;
+      document.getElementById("admOff").onclick = () => { localStorage.removeItem("yk_admin"); toast("解除しました"); renderMypage(); };
+    } else {
+      area.innerHTML = `<p class="muted">管理者パスワードを入れると、他人の作品も削除できるようになります。</p><div class="row"><input type="password" id="admPw" placeholder="管理者パスワード" style="flex:1"><button class="primary-btn" id="admOn">有効にする</button></div>`;
+      document.getElementById("admOn").onclick = async () => {
+        const pw = document.getElementById("admPw").value;
+        const r = await fetch("/api/admin/check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: pw }) });
+        if (r.ok) { localStorage.setItem("yk_admin", pw); toast("管理者モードを有効にしました"); renderMypage(); }
+        else toast("パスワードが違うか、サーバー未設定です");
+      };
+    }
+  };
+  drawAdmin();
   const { posts } = await api("/api/feed?sort=new");
   const mine = posts.filter(p => p.mine);
   const list = document.getElementById("myPosts");
@@ -246,6 +266,12 @@ function bindPostActions(container, posts) {
       else if (act === "follow") {
         const r = await api("/api/follow/" + encodeURIComponent(post.authorToken), { method: "POST", body: "{}" });
         toast(r.followed ? "フォローしました" : "フォローを外しました"); renderShell();
+      } else if (act === "admin-del") {
+        const extra = post.continuationCount ? "（続きも一緒に削除されます）" : "";
+        if (confirm("管理者権限でこの作品を削除しますか？" + extra)) {
+          await api("/api/admin/posts/" + id, { method: "DELETE", headers: { "content-type": "application/json", "x-user-token": myToken, "x-admin-password": ADMINPW() } });
+          toast("削除しました"); renderShell();
+        }
       } else if (act === "del") {
         if (confirm("この作品を削除しますか？")) { await api(`/api/posts/${id}`, { method: "DELETE" }); toast("削除しました"); renderShell(); }
       }
