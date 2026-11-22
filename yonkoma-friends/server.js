@@ -77,6 +77,20 @@ async function postRow(row, me) {
   };
 }
 
+const FAST_SQL = `SELECT p.*, u.name AS author_name, u.avatar AS author_avatar, u.avatar_image AS author_avatar_image, (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count, EXISTS(SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.token = ?) AS liked, (SELECT COUNT(*) FROM posts c WHERE c.parent_id = p.id) AS cont_count, EXISTS(SELECT 1 FROM follows f WHERE f.token = ? AND f.author_token = p.author_token) AS followed, pp.title AS parent_title, pu.name AS parent_author_name FROM posts p JOIN users u ON u.token = p.author_token LEFT JOIN posts pp ON pp.id = p.parent_id LEFT JOIN users pu ON pu.token = pp.author_token`;
+function fastPost(row, me) {
+  return {
+    id: row.id, title: row.title || "", mode: row.mode,
+    panels: JSON.parse(row.panels || "[]"), images: JSON.parse(row.images || "[]"),
+    parentId: row.parent_id || null,
+    parent: row.parent_id ? { id: row.parent_id, title: row.parent_title || "", authorName: row.parent_author_name || "ななし作家" } : null,
+    created: row.created,
+    authorToken: row.author_token, authorName: row.author_name || "ななし作家", authorAvatar: row.author_avatar || "🐱", authorAvatarImage: row.author_avatar_image || "",
+    likeCount: Number(row.like_count || 0), liked: !!Number(row.liked || 0), continuationCount: Number(row.cont_count || 0),
+    authorFollowed: !!Number(row.followed || 0), mine: me ? row.author_token === me : false,
+  };
+}
+
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://x");
@@ -113,11 +127,11 @@ const server = createServer(async (req, res) => {
       }
       if (path === "/api/feed" && req.method === "GET") {
         const sort = url.searchParams.get("sort") || "new";
-        const r = await db.execute("SELECT * FROM posts WHERE parent_id IS NULL ORDER BY created DESC LIMIT 200");
-        let posts = [];
-        for (const row of r.rows) posts.push(await postRow(row, me));
+        const r = await db.execute({ sql: FAST_SQL + " WHERE p.parent_id IS NULL ORDER BY p.created DESC LIMIT 200", args: [me || "", me || ""] });
+        let posts = r.rows.map(row => fastPost(row, me));
         if (sort === "popular") posts.sort((a, b) => b.likeCount - a.likeCount || b.created - a.created);
         else posts.sort((a, b) => (Number(b.authorFollowed) - Number(a.authorFollowed)) || b.created - a.created);
+        for (const p of posts) { if (p.mode === "image") { if (p.images.length > 1) p.images = p.images.slice(0, 2); } else p.panels = p.panels.slice(0, 2); }
         return send(res, 200, { posts });
       }
       if (path === "/api/posts" && req.method === "POST") {
@@ -185,31 +199,42 @@ const server = createServer(async (req, res) => {
         return send(res, 200, { posts: out });
       }
       if (path === "/api/ranking" && req.method === "GET") {
-        const r = await db.execute("SELECT * FROM posts WHERE parent_id IS NULL ORDER BY created DESC LIMIT 200");
-        let posts = [];
-        for (const row of r.rows) posts.push(await postRow(row, me));
-        posts.sort((a, b) => b.likeCount - a.likeCount || b.created - a.created);
-        return send(res, 200, { posts: posts.slice(0, 30) });
+        const users = await db.execute("SELECT * FROM users");
+        const likeRows = await db.execute("SELECT p.author_token AS token, COUNT(l.post_id) AS total FROM posts p JOIN likes l ON l.post_id = p.id GROUP BY p.author_token");
+        const totals = {}; for (const r of likeRows.rows) totals[r.token] = Number(r.total);
+        const countRows = await db.execute("SELECT author_token AS token, COUNT(*) AS c FROM posts WHERE parent_id IS NULL GROUP BY author_token");
+        const counts = {}; for (const r of countRows.rows) counts[r.token] = Number(r.c);
+        const out = [];
+        for (const u of users.rows) {
+          if (!counts[u.token]) continue;
+          out.push({ token: u.token, name: u.name, avatar: u.avatar, avatarImage: u.avatar_image || "", totalLikes: totals[u.token] || 0, postCount: counts[u.token] });
+        }
+        out.sort((a, b) => b.totalLikes - a.totalLikes || b.postCount - a.postCount);
+        return send(res, 200, { authors: out.slice(0, 30) });
       }
       if (path === "/api/authors" && req.method === "GET") {
         const q = (url.searchParams.get("q") || "").toLowerCase();
         const users = await db.execute("SELECT * FROM users");
         const week = Date.now() - 7 * 24 * 3600 * 1000;
+        const pr = await db.execute("SELECT p.author_token, p.id, p.title, p.created, (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count FROM posts p WHERE p.parent_id IS NULL ORDER BY p.created DESC");
+        const byAuthor = {};
+        for (const p of pr.rows) (byAuthor[p.author_token] = byAuthor[p.author_token] || []).push(p);
+        const myFollows = new Set();
+        if (me) { const fr = await db.execute({ sql: "SELECT author_token FROM follows WHERE token=?", args: [me] }); for (const f of fr.rows) myFollows.add(f.author_token); }
+        const fcRows = await db.execute("SELECT author_token AS token, COUNT(*) AS c FROM follows GROUP BY author_token");
+        const fgRows = await db.execute("SELECT token, COUNT(*) AS c FROM follows GROUP BY token");
+        const followersMap = {}; for (const r of fcRows.rows) followersMap[r.token] = Number(r.c);
+        const followingMap = {}; for (const r of fgRows.rows) followingMap[r.token] = Number(r.c);
         const out = [];
         for (const u of users.rows) {
-          const all = await db.execute({ sql: "SELECT id, title, created FROM posts WHERE author_token=? AND parent_id IS NULL ORDER BY created DESC", args: [u.token] });
-          if (!all.rows.length) continue;
-          const recent = all.rows.filter(p => Number(p.created) >= week).length;
-          const top = all.rows[0];
-          let topLikes = -1, topPost = top;
-          for (const p of all.rows) { const lc = await db.execute({ sql: "SELECT COUNT(*) c FROM likes WHERE post_id=?", args: [p.id] }); if (Number(lc.rows[0].c) > topLikes) { topLikes = Number(lc.rows[0].c); topPost = p; } }
-          const hit = !q || u.name.toLowerCase().includes(q) || all.rows.some(p => (p.title || "").toLowerCase().includes(q));
+          const all = byAuthor[u.token] || [];
+          if (!all.length) continue;
+          const recent = all.filter(p => Number(p.created) >= week).length;
+          let topPost = all[0];
+          for (const p of all) if (Number(p.like_count) > Number(topPost.like_count)) topPost = p;
+          const hit = !q || u.name.toLowerCase().includes(q) || all.some(p => (p.title || "").toLowerCase().includes(q));
           if (!hit) continue;
-          let followed = false;
-          if (me) { const f = await db.execute({ sql: "SELECT 1 FROM follows WHERE token=? AND author_token=?", args: [me, u.token] }); followed = f.rows.length > 0; }
-          const fc2 = await db.execute({ sql: "SELECT COUNT(*) c FROM follows WHERE author_token=?", args: [u.token] });
-          const fg2 = await db.execute({ sql: "SELECT COUNT(*) c FROM follows WHERE token=?", args: [u.token] });
-          out.push({ token: u.token, name: u.name, avatar: u.avatar, avatarImage: u.avatar_image || "", postCount: all.rows.length, recentPosts: recent, onARoll: recent >= 3, topPost: { id: topPost.id, title: topPost.title || "" }, followed, followers: Number(fc2.rows[0].c), following: Number(fg2.rows[0].c), titles: all.rows.map(p => p.title || "") });
+          out.push({ token: u.token, name: u.name, avatar: u.avatar, avatarImage: u.avatar_image || "", postCount: all.length, recentPosts: recent, onARoll: recent >= 3, topPost: { id: topPost.id, title: topPost.title || "" }, followed: myFollows.has(u.token), followers: followersMap[u.token] || 0, following: followingMap[u.token] || 0, titles: all.map(p => p.title || "") });
         }
         out.sort((a, b) => b.recentPosts - a.recentPosts || b.postCount - a.postCount);
         return send(res, 200, { authors: out });
@@ -224,9 +249,8 @@ const server = createServer(async (req, res) => {
         const fg = await db.execute({ sql: "SELECT COUNT(*) c FROM follows WHERE token=?", args: [token] });
         let followed = false;
         if (me) { const f = await db.execute({ sql: "SELECT 1 FROM follows WHERE token=? AND author_token=?", args: [me, token] }); followed = f.rows.length > 0; }
-        const pr = await db.execute({ sql: "SELECT * FROM posts WHERE author_token=? AND parent_id IS NULL ORDER BY created DESC LIMIT 50", args: [token] });
-        const posts = [];
-        for (const row of pr.rows) posts.push(await postRow(row, me));
+        const pr = await db.execute({ sql: FAST_SQL + " WHERE p.author_token = ? AND p.parent_id IS NULL ORDER BY p.created DESC LIMIT 50", args: [me || "", me || "", token] });
+        const posts = pr.rows.map(row => fastPost(row, me));
         return send(res, 200, { user: { token: user.token, name: user.name, avatar: user.avatar, avatarImage: user.avatar_image || "", followers: Number(fc.rows[0].c), following: Number(fg.rows[0].c), followed, mine: me ? me === token : false }, posts });
       }
       const mFollow = path.match(/^\/api\/follow\/(.+)$/);
