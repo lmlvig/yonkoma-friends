@@ -442,21 +442,11 @@ function renderCreate(parentPost) {
       document.getElementById("imSingle").onchange = async e => { const f = e.target.files[0]; if (f) { imgData.single = await fileToDataUrl(f); drawImage(); } };
       return;
     }
-    body.innerHTML = `<div class="row" style="margin-bottom:10px">
-        <button class="chip ${imgData.kind === "whole" ? "on" : ""}" id="ikWhole">4コマ全体を1枚で</button>
-        <button class="chip ${imgData.kind === "panels" ? "on" : ""}" id="ikPanels">コマごとに4枚</button></div>
+    body.innerHTML = `<p class="muted">1コマに1枚ずつ、全部で4枚の写真を選んでください（4コマ全体を1枚で投稿はできません）。</p>
       <div id="imArea"></div>`;
-    document.getElementById("ikWhole").onclick = () => { imgData.kind = "whole"; drawImage(); };
-    document.getElementById("ikPanels").onclick = () => { imgData.kind = "panels"; drawImage(); };
     const area = document.getElementById("imArea");
-    if (imgData.kind === "whole") {
-      area.innerHTML = `<label class="primary-btn" style="background:var(--accent2);display:inline-block">📷 写真を選ぶ<input type="file" id="imWhole" accept="image/*" class="hidden"></label>
-        <div style="height:8px"></div>${imgData.whole ? `<img class="whole-img" src="${imgData.whole}">` : `<p class="muted">描いた4コマ全体の写真を1枚選んでください。</p>`}`;
-      document.getElementById("imWhole").onchange = async e => { const f = e.target.files[0]; if (f) { imgData.whole = await fileToDataUrl(f); drawImage(); } };
-    } else {
-      area.innerHTML = `<div class="panels-preview">${imgData.panels.map((s, i) => `<label class="panel-box" style="cursor:pointer">${s ? `<img class="panel-img" src="${s}">` : `<span class="pnum">${i + 1}コマ目</span><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px">＋</span>`}<input type="file" data-pi="${i}" accept="image/*" class="hidden"></label>`).join("")}</div>`;
-      area.querySelectorAll("[data-pi]").forEach(inp => inp.onchange = async e => { const f = e.target.files[0]; if (f) { imgData.panels[Number(inp.dataset.pi)] = await fileToDataUrl(f); drawImage(); } });
-    }
+    area.innerHTML = `<div class="panels-preview">${imgData.panels.map((s, i) => `<label class="panel-box" style="cursor:pointer">${s ? `<img class="panel-img" src="${s}">` : `<span class="pnum">${i + 1}コマ目</span><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px">＋</span>`}<input type="file" data-pi="${i}" accept="image/*" class="hidden"></label>`).join("")}</div>`;
+    area.querySelectorAll("[data-pi]").forEach(inp => inp.onchange = async e => { const f = e.target.files[0]; if (f) { imgData.panels[Number(inp.dataset.pi)] = await fileToDataUrl(f); drawImage(); } });
   };
   document.getElementById("modeEd").onclick = () => { mode = "editor"; drawEditor(); };
   document.getElementById("modeImg").onclick = () => { mode = "image"; drawImage(); };
@@ -473,7 +463,6 @@ function renderCreate(parentPost) {
       } else {
         let images;
         if (isCont) { if (!imgData.single) return toast("写真を選んでください"); images = [imgData.single]; }
-        else if (imgData.kind === "whole") { if (!imgData.whole) return toast("写真を選んでください"); images = [imgData.whole]; }
         else { if (imgData.panels.some(s => !s)) return toast("4枚すべて選んでください"); images = imgData.panels; }
         payload = { mode: "image", panels: [], images, parentId: parentPost ? parentPost.id : null, title: isCont ? "" : document.getElementById("postTitle").value, clientKey: postKey };
       }
